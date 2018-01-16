@@ -1,0 +1,1 @@
+This needs cleaned up before anyone uses it, but this is an initial version of a script that scrapes a rentcafe apartment site to determine if certain floorplans are available and sends an sns notification. This is super beta so don't use it unless you know what you are doing.
