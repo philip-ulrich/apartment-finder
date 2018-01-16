@@ -11,7 +11,7 @@ desired_floorplans = {
     "2142865":"The Bluebonnet",
     "2258460":"The Lonestar with Fenced-In Yard",
     "2258459":"The Longhorn with Fenced-In Yard",
-    "2283633":"The Longhorn with Garage and Fenced Yard"
+    "2283633":"The Longhorn with Garage and Fenced Yard",
 }
 result_dict = {}
 
@@ -60,7 +60,7 @@ for key in result_dict.keys():
     results[key] = result_dict[key]
 
 for apt in results['apt']:
-    msg = "Delisted: "+key+"-"+desired_floorplans[result_dict[key][0]]+"-"+'-'.join(result_dict[key][3][1:])+"-"+'-'.join(result_dict[key][4])
+    msg = "Delisted: "+apt+"-"+desired_floorplans[results[apt][0]]+"-"+'-'.join(results[apt][3][1:])+"-"+'-'.join(results[apt][4])
     if result_dict.get(apt) == None:
         results['apt'].remove(apt)
         client.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
