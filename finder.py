@@ -3,8 +3,11 @@ import bs4 as bs
 import requests
 import shelve
 
-client = boto3.client('sns')
-results = shelve.open("apartment-finder.db", writeback=True)
+sns = boto3.client('sns')
+dynamodb = boto3.resource('dynamodb')
+table = dynamodb.Table('apartment-finder')
+
+
 domain = "http://www.bexleylakeline.com/"
 url = "availableunits.aspx?control=1&myolePropertyID=535202"
 desired_floorplans = {
@@ -49,19 +52,65 @@ for floorplan in desired_floorplans.keys():
 
 for key in result_dict.keys():
     msg = "Listed: "+key+"-"+desired_floorplans[result_dict[key][0]]+"-"+'-'.join(result_dict[key][3][1:])+"-"+''.join(result_dict[key][4])
-    if results.get("apt") == None:
-        results['apt'] = list()
-        results['apt'].append(key)
-        client.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
+    apt_list =  table.get_item(
+                    Key={
+                        "key":"apt"
+                    }
+                )
+    if "Item" not in apt_list:
+        nlist = [key]
+        table.put_item(
+            Item={
+                'key': 'apt',
+                'entry': nlist
+            }
+        )
+        sns.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
     else:
-        if key not in results['apt']:
-            results['apt'].append(key)
-            client.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
-    results[key] = result_dict[key]
+        item = apt_list['Item']['entry']
+        if key not in item:
+            item = apt_list['Item']['entry']
+            item.append(key)
+            print(item)
+            table.update_item(
+                Key={
+                    'key': 'apt'
+                },
+                UpdateExpression='SET entry = :nentry',
+                ExpressionAttributeValues={
+                    ':nentry': item
+                }
+            )
+            sns.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
+    apt_entry = table.get_item(
+                    Key={
+                        "key":key
+                    }
+                )
+    if "Item" not in apt_entry:
+        table.put_item(
+            Item={
+                'key': key,
+                'entry': result_dict[key],
+            }
+        )
 
-for apt in results['apt']:
-    msg = "Delisted: "+apt+"-"+desired_floorplans[results[apt][0]]+"-"+'-'.join(results[apt][3][1:])+"-"+'-'.join(results[apt][4])
+apt_list =  table.get_item(
+                Key={
+                    "key":"apt"
+                }
+            )
+for apt in apt_list["Item"]["entry"]:
+    apt_entry = table.get_item(
+                    Key={
+                        "key":apt
+                    }
+                )
+    msg = "Delisted: "+apt+"-"+desired_floorplans[apt_entry["Item"]["entry"][0]]+"-"+'-'.join(apt_entry["Item"]["entry"][3][1:])+"-"+'-'.join(apt_entry["Item"]["entry"][4])
     if result_dict.get(apt) == None:
-        results['apt'].remove(apt)
-        client.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
-results.close()
+        response = table.delete_item(
+            Key={
+                "key":apt
+            }
+        ) 
+        sns.publish(TopicArn="arn:aws:sns:us-east-1:905998010507:apartment-notification",Message=msg)
